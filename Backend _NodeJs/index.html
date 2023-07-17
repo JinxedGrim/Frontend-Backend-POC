@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="utf-8" />
+    <title>JinxedGrim</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+        body 
+        {
+            background-color: black;
+            color: #39FF14;
+            font-family: consolas;
+        }
+
+        .Navbar {
+            padding: 0px;
+            margin: 0px;
+            background-color: #0f0f0f;
+            overflow: hidden;
+            top: 0;
+            left: 0;
+            width: 100%;
+            position: fixed;
+            display: flex;
+        }
+
+        .NavLink {
+                display: flex;
+        }
+
+        .NavLink a {    
+            display: block;
+            color: #39FF14;
+            text-align: center;
+            padding: 12px 14px;
+            margin: 0px;
+            text-decoration: none;
+        }
+
+        .NavLink a:hover:not(.NavbarActive) {
+            background-color: #363636;
+        }
+
+        .NavbarActive {
+            background-color: black;
+        }
+
+
+        .Links {
+            display: inline-block;
+            border: 1px solid #39FF14;
+            padding: 5px;
+            margin: 1px;
+            vertical-align: top; /* Added property */
+            position: absolute;
+            left: 50vw;
+            top: 50vh;
+            text-align: center; 
+        }
+
+        a:visited, a:link {
+            color: #39FF14
+        }
+    </style>
+</head>
+
+<body>
+    <div class="Navbar">
+        <div class="NavLink">
+            <a class="NavbarActive" href="/"> Home </a>
+        </div>
+        <div class="NavLink">
+            <a href="/Login"> Login </a>
+        </div>
+        <div class="NavLink">
+            <a href="/CreateAccount"> Register </a>
+        </div>
+        <div class="NavLink">
+            <a href="https://github.com/JinxedGrim"><i class="fa fa-github" style="font-size:24px"></i></a>
+        </div>
+        <div class="NavLink">
+            <a href="https://www.youtube.com/channel/UCi7RrfPHd9tjUfDiPgvxkVw"><i class="fa fa-youtube-play" style="font-size:24px"></i></a>
+        </div>
+        <div class="NavLink">
+            <a href="https://www.twitch.tv/JinxedGrim"><i class="fa fa-twitch" style="font-size:24px"></i></a>
+        </div>
+    </div>
+    <br>
+    <br>
+    <h1 style="text-align: center">Hola! This is JinxedGrims first webserver!</h1>
+    <div class="Links">
+        Links to check
+        <br><br>
+        <a href="https://github.com/JinxedGrim">My Github  <i class="fa fa-github" style="font-size:12px"></i></a>
+        <br>
+        <a href="https://www.twitch.tv/JinxedGrim">My Twitch  <i class="fa fa-twitch" style="font-size: 12px"></i></a>
+        <br>
+        <a href="https://www.youtube.com/channel/UCi7RrfPHd9tjUfDiPgvxkVw">My Youtube  <i class="fa fa-youtube-play" style="font-size: 12px"></i></a>
+    </div>
+</body>
+
+</html>

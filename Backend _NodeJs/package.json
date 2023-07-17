@@ -1,0 +1,23 @@
+{
+  "name": "backend-_node-js",
+  "version": "0.0.0",
+  "description": "Backend _NodeJs",
+  "main": "server.js",
+  "author": {
+    "name": ""
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
+  },
+  "devDependencies": {
+    "@types/node": "^14.14.7",
+    "typescript": "^4.0.5"
+  },
+  "dependencies": {
+    "@types/mssql": "^8.1.2",
+    "msnodesqlv8": "^4.1.0",
+    "mssql": "^9.1.1",
+    "mysql": "^2.18.1"
+  }
+}

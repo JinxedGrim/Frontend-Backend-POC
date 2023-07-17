@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="utf-8" />
+    <title>JinxedGrim</title>
+    <style>
+        body {
+            background-color: black;
+            color: #39FF14;
+        }
+
+        .ChangePassword,
+        .SiteLinks {
+            display: inline-block;
+            border: 1px solid #39FF14;
+            padding: 5px;
+            margin: 1px;
+            vertical-align: top; /* Added property */
+        }
+
+        a:visited, a:link {
+            color: #39FF14
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Admin Dashboard</h1>
+    <div class="ChangePassword">
+        Change Password:
+        <form action="/ChangePassword" method="POST" enctype="application/x-www-form-urlencoded" target="_self">
+            <label for="PASSWORD"> Password </label>
+            <br>
+            <input type="password" id="PASSWORD" name="PASSWORD">
+            <br>
+            <label for="PASSWORD2"> Confirm Password </label>
+            <br>
+            <input type="password" id="PASSWORD2" name="PASSWORD2">
+            <br><br>
+            <input type="submit" value="Create">
+        </form>
+    </div>
+    <div class="RunSqlQuery"></div>
+    Change Password:
+    <form action="/ChangePassword" method="POST" enctype="application/x-www-form-urlencoded" target="_self">
+        <label for="PASSWORD"> Password </label>
+        <br>
+        <input type="text" id="SQLQUERY" name="SQLQUERY">
+        <br><br>
+        <input type="submit" value="Create">
+    </form>
+    <div class="API">
+        Api Key:
+
+    </div>
+</body>
+
+</html>
