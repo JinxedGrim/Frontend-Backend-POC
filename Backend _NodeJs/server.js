@@ -11,6 +11,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 const http = require("http");
 const process_1 = require("process");
+const fsasync = require('fs').promises;
 const fs = require('fs');
 const path = require('path');
 const { parse } = require('querystring');
@@ -19,14 +20,16 @@ const crypto = require("crypto");
 const config = {
     server: 'localhost',
     database: 'Users',
-    user: 'NJSU',
-    password: 'NJSQ',
+    user: '****',
+    password: '****',
     options: {
         trustServerCertificate: true, // Trust the self-signed certificate
     }
 };
+const salt = 'SaltyLOL';
 var IpToPrint = '0.0.0.0';
-const port = process.env.port || 80;
+const port = process.env.port || 667;
+var UserVisits = 0;
 function HashPassword(data) {
     const hash = crypto.createHash('sha256');
     hash.update(data);
@@ -214,12 +217,14 @@ function ParsePOST(Request, Cb) {
 }
 http.createServer(function (Req, Res) {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log('Request Recieved');
-        console.log('Http Version: ' + Req.httpVersion);
-        console.log('Status Code: ' + Req.statusCode);
-        console.log('Request IP: ' + Req.socket.remoteAddress);
-        console.log('Request URL: ' + Req.url);
-        console.log('Request Method: ' + Req.method);
+        if (Req.url != '/Api/VisitCount') {
+            console.log('Request Recieved');
+            console.log('Http Version: ' + Req.httpVersion);
+            console.log('Request IP: ' + Req.socket.remoteAddress);
+            console.log('Request URL: ' + Req.url);
+            console.log('Request Method: ' + Req.method);
+            UserVisits += 1;
+        }
         if (Req.url == '/') {
             IpToPrint = Req.socket.remoteAddress;
             var HtmlToWrite = yield BuildHtml(Req.url);
@@ -347,14 +352,31 @@ http.createServer(function (Req, Res) {
                 });
             }
         }
-        else if (Req.url == '/User/Api') {
+        else if (Req.url == '/Api/VisitCount') {
+            var ToWrite = String(UserVisits);
+            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': ToWrite.length });
+            Res.end(ToWrite);
+            //console.log('VisitCount API: Recieved Request');
+        }
+        else if (Req.url === '/favicon.ico') {
+            // Set the path to the favicon file
+            const Favicon = path.join(__dirname, 'favicon.ico');
+            fsasync.readFile(Favicon).then(ImData => {
+                Res.writeHead(200, { 'Content-Type': 'image/x-icon' });
+                Res.end(ImData);
+            })
+                .catch(Err => {
+                console.log(`Failed to load favicon ${Favicon}:`, Err);
+            });
         }
         else {
-            console.log('Http repsonse is 404');
             Res.statusCode = 404;
             Res.end();
         }
-        console.log('\n');
+        if (Req.url != '/Api/VisitCount') {
+            console.log(`Http repsonse is ${Res.statusCode}`);
+            console.log('\n');
+        }
     });
 }).listen(port);
 //# sourceMappingURL=server.js.map

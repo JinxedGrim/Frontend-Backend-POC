@@ -1,6 +1,7 @@
 import http = require('http');
 import https = require('https');
 import { exit } from 'process';
+const fsasync = require('fs').promises
 const fs = require('fs');
 const path = require('path');
 const { parse } = require('querystring');
@@ -8,7 +9,7 @@ const sql = require('mssql');
 const crypto = require("crypto")
 const config =
 {
-    server: '*',
+    server: 'localhost',
     database: 'Users',
     user: '****',
     password: '****',
@@ -18,9 +19,10 @@ const config =
     }
 };
 
+const salt = 'SaltyLOL'
 var IpToPrint = '0.0.0.0';
-const port = process.env.port || 80;
-
+const port = process.env.port || 667;
+var UserVisits = 0;
 
 function HashPassword(data)
 {
@@ -274,12 +276,15 @@ function ParsePOST(Request, Cb)
 
 http.createServer(async function (Req, Res)
 {
-    console.log('Request Recieved');
-    console.log('Http Version: ' + Req.httpVersion);
-    console.log('Status Code: ' + Req.statusCode);
-    console.log('Request IP: ' + Req.socket.remoteAddress);
-    console.log('Request URL: ' + Req.url);
-    console.log('Request Method: ' + Req.method);
+    if (Req.url != '/Api/VisitCount')
+    {
+        console.log('Request Recieved');
+        console.log('Http Version: ' + Req.httpVersion);
+        console.log('Request IP: ' + Req.socket.remoteAddress);
+        console.log('Request URL: ' + Req.url);
+        console.log('Request Method: ' + Req.method);
+        UserVisits += 1;
+    }
 
     if (Req.url == '/')
     {
@@ -440,17 +445,40 @@ http.createServer(async function (Req, Res)
             });
         }
     }
-    else if (Req.url == '/User/Api')
+    else if (Req.url == '/Api/VisitCount')
     {
+        var ToWrite = String(UserVisits);
+        Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': ToWrite.length });
+        Res.end(ToWrite);
 
+        //console.log('VisitCount API: Recieved Request');
+    }
+    else if (Req.url === '/favicon.ico')
+    {
+        // Set the path to the favicon file
+        const Favicon = path.join(__dirname, 'favicon.ico');
+
+        fsasync.readFile(Favicon).then
+            (ImData =>
+            {
+                Res.writeHead(200, { 'Content-Type': 'image/x-icon' });
+                Res.end(ImData);
+            })
+            .catch(Err =>
+            {
+                console.log(`Failed to load favicon ${Favicon}:`, Err);
+            });
     }
     else
     {
-        console.log('Http repsonse is 404');
         Res.statusCode = 404;
         Res.end();
     }
 
-    console.log('\n');
+    if (Req.url != '/Api/VisitCount')
+    {
+        console.log(`Http repsonse is ${Res.statusCode}`);
+        console.log('\n');
+    }
 
 }).listen(port);

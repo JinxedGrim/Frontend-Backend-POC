@@ -23,27 +23,33 @@
             width: 100%;
             position: fixed;
             display: flex;
+            box-shadow: 0 0 10px #39FF14;
+            font-family: consolas;
         }
 
         .NavLink {
-                display: flex;
+            display: flex;
+            font-family: consolas;
         }
 
-        .NavLink a {    
-            display: block;
-            color: #39FF14;
-            text-align: center;
-            padding: 12px 14px;
-            margin: 0px;
-            text-decoration: none;
-        }
+            .NavLink a {
+                display: block;
+                color: #39FF14;
+                text-align: center;
+                padding: 12px 14px;
+                margin: 0px;
+                text-decoration: none;
+                font-family: consolas;
+            }
 
-        .NavLink a:hover:not(.NavbarActive) {
-            background-color: #363636;
-        }
+                .NavLink a:hover:not(.NavbarActive) {
+                    background-color: #363636;
+                    font-family: consolas;
+                }
 
         .NavbarActive {
             background-color: black;
+            font-family: consolas;
         }
 
 
@@ -56,7 +62,23 @@
             position: absolute;
             left: 50vw;
             top: 50vh;
-            text-align: center; 
+            text-align: center;
+            box-shadow: 0 0 10px #39FF14;
+            font-family: consolas;
+        }
+         
+        .Visits {
+            display: inline-block;
+            border: 1px solid #39FF14;
+            padding: 5px;
+            margin: 1px;
+            vertical-align: top; /* Added property */
+            position: absolute;
+            left: 50vw;
+            top: 25vh;
+            text-align: center;
+            font-family: consolas;
+            box-shadow: 0 0 10px #39FF14;
         }
 
         a:visited, a:link {
@@ -64,7 +86,7 @@
         }
     </style>
 </head>
-
+ 
 <body>
     <div class="Navbar">
         <div class="NavLink">
@@ -88,7 +110,7 @@
     </div>
     <br>
     <br>
-    <h1 style="text-align: center">Hola! This is JinxedGrims first webserver!</h1>
+    <h1 style="text-align: center">Welcome! This is JinxedGrims first webserver!</h1>
     <div class="Links">
         Links to check
         <br><br>
@@ -98,6 +120,48 @@
         <br>
         <a href="https://www.youtube.com/channel/UCi7RrfPHd9tjUfDiPgvxkVw">My Youtube  <i class="fa fa-youtube-play" style="font-size: 12px"></i></a>
     </div>
-</body>
+    <div class="Visits">
+        <script>
+            const HostName = window.location.hostname;
 
+            var Port = window.location.port;
+
+            const VisitAPIEndpoint = `http://${HostName}:${Port}/Api/VisitCount`;
+            const VisitDiv = document.querySelector('.Visits');
+
+            function UpdateVisitCount()
+            {
+                fetch(VisitAPIEndpoint).then
+                    (response =>
+                    {
+                        if (!response.ok)
+                        {
+                            console.log('VisitCount API Failed (Response wasn\'t OK)');
+                            return -1;
+                        }
+
+                        //console.log('Response was OK');
+
+                        return response.text();
+                    }
+                ).then
+                    (VisitCount =>
+                    {
+                        //console.log('Setting UserVisits');
+                        VisitDiv.textContent = `User Visits: ${VisitCount}`;
+                        //console.log('Set UserVisits OK');
+                    }
+                ).catch
+                    (error =>
+                    {
+                        console.error('VisitCount API Failed: ', error.text);
+                    }
+                )
+            }
+
+            UpdateVisitCount();
+            setInterval(UpdateVisitCount, 1000);
+        </script>
+    </div>
+</body>
 </html>
