@@ -18,15 +18,15 @@ const { parse } = require('querystring');
 const sql = require('mssql');
 const crypto = require("crypto");
 const FifteenMinsS = 900;
-const PreDefinedSalt = 'SaltyLOL';
+const PreDefinedSalt = '[REDACTED FROM COMMIT]';
 var IpToPrint = '0.0.0.0';
 const port = process.env.port || 667;
 var UserVisits = 0;
 const config = {
     server: 'localhost',
     database: 'Users',
-    user: 'NJSU',
-    password: 'NJSQ',
+    user: '[REDACTED FROM COMMIT]',
+    password: '[REDACTED FROM COMMIT]',
     options: {
         trustServerCertificate: true, // Trust the self-signed certificate
     }
@@ -241,7 +241,7 @@ function WriteSessionID(SessionID, UidOrUname) {
         const Query = `UPDATE Users SET SessionID = @sid WHERE ${Where} = @Param`;
         const Query2 = `UPDATE Users SET SessionExp = @ExpTime WHERE ${Where} = @Param`;
         const CurrTime = new Date();
-        CurrTime.setMinutes(CurrTime.getMinutes() + 1);
+        CurrTime.setMinutes(CurrTime.getMinutes() + 15);
         const CurrUtcTime = CurrTime.toISOString();
         // Convert to a format suitable for SQL
         // Assuming your SQL database expects the datetime in 'YYYY-MM-DD HH:MM:SS' format
@@ -369,7 +369,8 @@ http.createServer(function (Req, Res) {
         if (Req.url == '/') {
             IpToPrint = Req.socket.remoteAddress;
             var HtmlToWrite = yield BuildHtml(Req.url);
-            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length, 'Set-Cookie': 'SessionID=; HttpOnly; Secure; SameSite=Strict; Max-Age=0' });
+            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
+            //,'Set-Cookie': 'SessionID=; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
             Res.end(HtmlToWrite);
         }
         else if (Req.url == '/CreateAccount') {
