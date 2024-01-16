@@ -13,7 +13,8 @@
             font-family: consolas;
         }
 
-        .Navbar {
+        .Navbar 
+        {
             padding: 0px;
             margin: 0px;
             background-color: #0f0f0f;
@@ -27,25 +28,28 @@
             font-family: consolas;
         }
 
-        .NavLink {
+        .NavLink 
+        {
             display: flex;
             font-family: consolas;
         }
 
-            .NavLink a {
-                display: block;
-                color: #39FF14;
-                text-align: center;
-                padding: 12px 14px;
-                margin: 0px;
-                text-decoration: none;
-                font-family: consolas;
-            }
+        .NavLink a 
+        {
+            display: block;
+            color: #39FF14;
+            text-align: center;
+            padding: 12px 14px;
+            margin: 0px;
+            text-decoration: none;
+            font-family: consolas;
+        }
 
-                .NavLink a:hover:not(.NavbarActive) {
-                    background-color: #363636;
-                    font-family: consolas;
-                }
+        .NavLink a:hover:not(.NavbarActive) 
+        {
+            background-color: #363636;
+            font-family: consolas;
+        }
 
         .NavbarActive {
             background-color: black;
@@ -75,13 +79,13 @@
             vertical-align: top; /* Added property */
             position: absolute;
             left: 50vw;
-            top: 25vh;
             text-align: center;
             font-family: consolas;
             box-shadow: 0 0 10px #39FF14;
         }
 
-        a:visited, a:link {
+        a:visited, a:link 
+        {
             color: #39FF14
         }
     </style>
@@ -111,16 +115,7 @@
     <br>
     <br>
     <h1 style="text-align: center">Welcome! This is JinxedGrims first webserver!</h1>
-    <div class="Links">
-        Links to check
-        <br><br>
-        <a href="https://github.com/JinxedGrim">My Github  <i class="fa fa-github" style="font-size:12px"></i></a>
-        <br>
-        <a href="https://www.twitch.tv/JinxedGrim">My Twitch  <i class="fa fa-twitch" style="font-size: 12px"></i></a>
-        <br>
-        <a href="https://www.youtube.com/channel/UCi7RrfPHd9tjUfDiPgvxkVw">My Youtube  <i class="fa fa-youtube-play" style="font-size: 12px"></i></a>
-    </div>
-    <div class="Visits">
+    <h2 class="Visits">
         <script>
             const HostName = window.location.hostname;
 
@@ -142,26 +137,35 @@
 
                         //console.log('Response was OK');
 
-                        return response.text();
+                        return response.json();
                     }
-                ).then
+                    ).then
                     (VisitCount =>
                     {
                         //console.log('Setting UserVisits');
-                        VisitDiv.textContent = `User Visits: ${VisitCount}`;
+                        VisitDiv.textContent = `User Visits: ${VisitCount.UserVisits}`;
                         //console.log('Set UserVisits OK');
                     }
-                ).catch
+                    ).catch
                     (error =>
                     {
                         console.error('VisitCount API Failed: ', error.text);
                     }
-                )
+                    )
             }
 
             UpdateVisitCount();
             setInterval(UpdateVisitCount, 1000);
         </script>
+    </h2>
+    <div class="Links">
+        Links to check
+        <br><br>
+        <a href="https://github.com/JinxedGrim">My Github  <i class="fa fa-github" style="font-size:12px"></i></a>
+        <br>
+        <a href="https://www.twitch.tv/JinxedGrim">My Twitch  <i class="fa fa-twitch" style="font-size: 12px"></i></a>
+        <br>
+        <a href="https://www.youtube.com/channel/UCi7RrfPHd9tjUfDiPgvxkVw">My Youtube  <i class="fa fa-youtube-play" style="font-size: 12px"></i></a>
     </div>
 </body>
 </html>

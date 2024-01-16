@@ -8,6 +8,46 @@
         body {
             background-color: black;
             color: #39FF14;
+            font-family: consolas;
+        }
+
+        .Navbar {
+            padding: 0px;
+            margin: 0px;
+            background-color: #0f0f0f;
+            overflow: hidden;
+            top: 0;
+            left: 0;
+            width: 100%;
+            position: fixed;
+            display: flex;
+            box-shadow: 0 0 10px #39FF14;
+            font-family: consolas;
+        }
+
+        .NavLink {
+            display: flex;
+            font-family: consolas;
+        }
+
+            .NavLink a {
+                display: block;
+                color: #39FF14;
+                text-align: center;
+                padding: 12px 14px;
+                margin: 0px;
+                text-decoration: none;
+                font-family: consolas;
+            }
+
+                .NavLink a:hover:not(.NavbarActive) {
+                    background-color: #363636;
+                    font-family: consolas;
+                }
+
+        .NavbarActive {
+            background-color: black;
+            font-family: consolas;
         }
 
         .ChangePassword,

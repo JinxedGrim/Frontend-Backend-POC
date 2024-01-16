@@ -17,23 +17,27 @@ const path = require('path');
 const { parse } = require('querystring');
 const sql = require('mssql');
 const crypto = require("crypto");
+const FifteenMinsS = 900;
+const PreDefinedSalt = 'SaltyLOL';
+var IpToPrint = '0.0.0.0';
+const port = process.env.port || 667;
+var UserVisits = 0;
 const config = {
     server: 'localhost',
     database: 'Users',
-    user: '****',
-    password: '****',
+    user: 'NJSU',
+    password: 'NJSQ',
     options: {
         trustServerCertificate: true, // Trust the self-signed certificate
     }
 };
-const salt = 'SaltyLOL';
-var IpToPrint = '0.0.0.0';
-const port = process.env.port || 667;
-var UserVisits = 0;
-function HashPassword(data) {
-    const hash = crypto.createHash('sha256');
-    hash.update(data);
-    return hash.digest('hex');
+function HashPassword(data, Salt = PreDefinedSalt) {
+    const Hash = crypto.createHash('sha256');
+    Hash.update(data + Salt);
+    return Hash.digest('hex');
+}
+function CreateRandomSalt() {
+    return crypto.randomBytes(16).toString('hex');
 }
 sql.connect(config).then(() => {
     console.log('Sql Connection to server: ' + config.server + ' successful\nConnection To DB: ' + config.database + ' Successfull\n');
@@ -70,6 +74,40 @@ function FindUserExists(Username) {
         return true;
     });
 }
+function QueryUidFromSid(SessionID) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const Query = 'SELECT Id FROM Users WHERE SessionId = @sid';
+        const SqlReq = new sql.Request();
+        SqlReq.input('sid', sql.NVarChar(sql.MAX), SessionID);
+        //console.log('Running the Query: ' + Query);
+        const Res = yield RunSqlQuery(SqlReq, Query);
+        //console.log(Res);
+        //console.log(Res.recordset.length);
+        if (!Array.isArray(Res.recordset) || Res.recordset.length <= 0) {
+            console.log(`Unable to find UID for SID: ${SessionID} !`);
+            return -1;
+        }
+        //console.log('User Priv:', Res.recordset[0].Privilege)
+        return Res.recordset[0].Id;
+    });
+}
+function QueryUnameFromSid(SessionID) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const Query = 'SELECT Username FROM Users WHERE SessionId = @sid';
+        const SqlReq = new sql.Request();
+        SqlReq.input('sid', sql.NVarChar(sql.MAX), SessionID);
+        //console.log('Running the Query: ' + Query);
+        const Res = yield RunSqlQuery(SqlReq, Query);
+        //console.log(Res);
+        //console.log(Res.recordset.length);
+        if (!Array.isArray(Res.recordset) || Res.recordset.length <= 0) {
+            console.log(`Unable to find UID for SID: ${SessionID} !`);
+            return '';
+        }
+        //console.log('User Priv:', Res.recordset[0].Privilege)
+        return Res.recordset[0].Username;
+    });
+}
 function QueryUserPriv(Username) {
     return __awaiter(this, void 0, void 0, function* () {
         const Query = 'SELECT Privilege FROM Users WHERE Username = @username';
@@ -77,13 +115,30 @@ function QueryUserPriv(Username) {
         SqlReq.input('username', sql.NVarChar(sql.MAX), Username);
         //console.log('Running the Query: ' + Query);
         const Res = yield RunSqlQuery(SqlReq, Query);
-        console.log(Res);
-        console.log(Res.recordset.length);
+        //console.log(Res);
+        //console.log(Res.recordset.length);
         if (!Array.isArray(Res.recordset) || Res.recordset.length <= 0) {
-            console.log('No Match!');
+            console.log(`Unable to find priveledge for user: ${Username}!`);
             return -1;
         }
-        console.log('User Priv:', Res.recordset[0].Privilege);
+        //console.log('User Priv:', Res.recordset[0].Privilege)
+        return Res.recordset[0].Privilege;
+    });
+}
+function QueryUserPrivBySID(SID) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const Query = 'SELECT Privilege FROM Users WHERE SessionId = @sid';
+        const SqlReq = new sql.Request();
+        SqlReq.input('sid', sql.NVarChar(sql.MAX), SID);
+        //console.log('Running the Query: ' + Query);
+        const Res = yield RunSqlQuery(SqlReq, Query);
+        //console.log(Res);
+        //console.log(Res.recordset.length);
+        if (!Array.isArray(Res.recordset) || Res.recordset.length <= 0) {
+            console.log(`Unable to find priveledge for user: ${SID} !`);
+            return -1;
+        }
+        //console.log('User Priv:', Res.recordset[0].Privilege)
         return Res.recordset[0].Privilege;
     });
 }
@@ -128,6 +183,87 @@ function CreateUser(Username, Password) {
         console.log(Res);
         //console.log(Res.recordset.length);
     });
+}
+function SessionActive(SessionID) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!SessionID)
+            return false;
+        const Query = 'SELECT Id FROM Users WHERE SessionID = @sid';
+        const Query2 = 'SELECT SessionExp FROM Users WHERE SessionID = @sid';
+        const SqlReq = new sql.Request();
+        SqlReq.input('sid', sql.NVarChar(sql.MAX), SessionID);
+        //console.log('Running the Query: ' + Query.replace('@sid', `'${SessionID}'`));
+        const Res = yield RunSqlQuery(SqlReq, Query);
+        //console.log(Res);
+        //console.log(Res.recordset.length);
+        if (!Array.isArray(Res.recordset) || Res.recordset.length <= 0) {
+            console.log(`Unable to find Uid from Sid: ${SessionID}`);
+            return false;
+        }
+        const Res2 = yield RunSqlQuery(SqlReq, Query2);
+        if (!Array.isArray(Res2.recordset) || Res2.recordset.length <= 0) {
+            console.log(`Unable to find Expiration Date from Sid: ${SessionID}`);
+            return false;
+        }
+        const CurrTime = new Date();
+        const CurrTimeUTC = new Date(CurrTime.toISOString());
+        const OldTime = new Date(Res2.recordset[0].SessionExp + 'Z'); // Add 'Z' to indicate UTC
+        //console.log(OldTime);
+        //console.log(CurrTimeUTC);
+        if (CurrTimeUTC > OldTime)
+            return false;
+        return true;
+    });
+}
+function WriteSessionID(SessionID, UidOrUname) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!SessionID) {
+            console.log(`[WriteSID] Inavlid Parameter (SessionID) ${SessionID}`);
+        }
+        if (typeof UidOrUname != 'number' && typeof UidOrUname != 'string') {
+            console.log(`[WriteSID] Inavlid Parameter (UidOrUname) ${UidOrUname} : ${typeof UidOrUname}`);
+            return;
+        }
+        var BadCase;
+        var Where = '';
+        if (typeof UidOrUname == 'number') {
+            BadCase = -1;
+            Where = 'Id';
+        }
+        else {
+            BadCase = '';
+            Where = 'Username';
+        }
+        if (UidOrUname == BadCase) {
+            console.log(`[WriteSID] Inavlid Parameter value`);
+            return;
+        }
+        const Query = `UPDATE Users SET SessionID = @sid WHERE ${Where} = @Param`;
+        const Query2 = `UPDATE Users SET SessionExp = @ExpTime WHERE ${Where} = @Param`;
+        const CurrTime = new Date();
+        CurrTime.setMinutes(CurrTime.getMinutes() + 1);
+        const CurrUtcTime = CurrTime.toISOString();
+        // Convert to a format suitable for SQL
+        // Assuming your SQL database expects the datetime in 'YYYY-MM-DD HH:MM:SS' format
+        const SqlTime = CurrUtcTime.slice(0, 19).replace('T', ' ');
+        const SqlReq = new sql.Request();
+        SqlReq.input('sid', sql.NVarChar(sql.MAX), SessionID);
+        SqlReq.input('ExpTime', sql.DateTime, SqlTime);
+        SqlReq.input('Param', sql.NVarChar(sql.MAX), UidOrUname);
+        const Res = yield RunSqlQuery(SqlReq, Query);
+        const Res2 = yield RunSqlQuery(SqlReq, Query2);
+        //console.log(Res);
+    });
+}
+function ParseCookies(CookieHeader) {
+    const Cookies = {};
+    if (CookieHeader) {
+        CookieHeader.split(';').forEach(Cookie => {
+            const [Key, Val] = Cookie.split('=').map(c => c.trim());
+            Cookies[Key] = Val;
+        });
+    }
+    return Cookies;
 }
 function BuildHtml(Url) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -198,10 +334,15 @@ function BuildHtml(Url) {
             }
         }
         if (Url == '/AdminPanel') {
-            var Head = '';
-            var Body = '<form action="/Login" method="POST" enctype="application/x-www-form-urlencoded" target="_self"> <label for="UNAME"> Username </label> <br> <input type="text" id="UNAME" name="UNAME"> <br> <label for="PASSWORD"> Password </label> <br> <input type="password" id="PASSWORD" name="PASSWORD"> <br><br> <input type="submit" value="Login" > </form>';
-            var Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
-            return '<style>' + Css + '</style>' + '<!DOCTYPE html>' + '<html><head>' + Head + '</head><body>' + Body + '</body></html>';
+            const Fn = path.join(__dirname, 'AdminPanel.html');
+            try {
+                const Data = yield fs.promises.readFile(Fn, 'utf8');
+                return Data;
+            }
+            catch (Err) {
+                console.error('Error reading file: ', Err);
+                return 'Error';
+            }
         }
     });
 }
@@ -217,7 +358,7 @@ function ParsePOST(Request, Cb) {
 }
 http.createServer(function (Req, Res) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (Req.url != '/Api/VisitCount') {
+        if (Req.url != '/Api/VisitCount' && Req.url != '/favicon.ico') {
             console.log('Request Recieved');
             console.log('Http Version: ' + Req.httpVersion);
             console.log('Request IP: ' + Req.socket.remoteAddress);
@@ -228,7 +369,7 @@ http.createServer(function (Req, Res) {
         if (Req.url == '/') {
             IpToPrint = Req.socket.remoteAddress;
             var HtmlToWrite = yield BuildHtml(Req.url);
-            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
+            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length, 'Set-Cookie': 'SessionID=; HttpOnly; Secure; SameSite=Strict; Max-Age=0' });
             Res.end(HtmlToWrite);
         }
         else if (Req.url == '/CreateAccount') {
@@ -247,6 +388,7 @@ http.createServer(function (Req, Res) {
                     else {
                         FindUserExists(Parsed.UNAME).then((UserExists) => __awaiter(this, void 0, void 0, function* () {
                             if (!UserExists) {
+                                Parsed.PASSWORD = HashPassword(Parsed.PASSWORD);
                                 yield CreateUser(Parsed.UNAME, Parsed.PASSWORD);
                                 Res.writeHead(302, { 'Location': '/Login' });
                                 Res.end();
@@ -263,71 +405,149 @@ http.createServer(function (Req, Res) {
         }
         else if (Req.url == '/Login') {
             if (Req.method == 'GET') {
-                var HtmlToWrite = yield BuildHtml(Req.url);
-                Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                Res.end(HtmlToWrite);
-            }
-            else if (Req.method == 'POST') {
-                ParsePOST(Req, Parsed => {
-                    console.log('POST RESULT: Uname: ' + Parsed.UNAME + ' Password: ' + Parsed.PASSWORD);
-                    FindUserExists(Parsed.UNAME).then((UserExists) => __awaiter(this, void 0, void 0, function* () {
-                        if (!UserExists) {
-                            var HtmlToWrite = yield BuildHtml(Req.url + 'Error');
+                var Cookies = ParseCookies(Req.headers.cookie);
+                var SessionID = Cookies.SessionID;
+                var IsActive;
+                if (SessionID) {
+                    SessionActive(SessionID).then((IsActive) => __awaiter(this, void 0, void 0, function* () {
+                        var Status = "Expired / Dne";
+                        if (IsActive)
+                            Status = "Active";
+                        console.log(`SessionID: ${SessionID} Status: ${Status}`);
+                        if (IsActive) {
+                            const Head = '<p>Credentials Match</p>';
+                            const Body = '';
+                            const Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
+                            var Script = '';
+                            QueryUserPrivBySID(SessionID).then((PrivVal) => {
+                                if (PrivVal >= 10) {
+                                    Res.writeHead(302, { 'Location': '/AdminPanel' });
+                                    Res.end();
+                                }
+                                else {
+                                    Res.writeHead(302, { 'Location': '/User' });
+                                    Res.end();
+                                }
+                            });
+                        }
+                        else {
+                            var HtmlToWrite = yield BuildHtml(Req.url);
                             Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
                             Res.end(HtmlToWrite);
                         }
+                    }));
+                }
+                else {
+                    var HtmlToWrite = yield BuildHtml(Req.url);
+                    Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
+                    Res.end(HtmlToWrite);
+                }
+            }
+            else if (Req.method == 'POST') {
+                ParsePOST(Req, Parsed => {
+                    var Hashed = HashPassword(Parsed.PASSWORD);
+                    console.log('POST RESULT: Uname: ' + Parsed.UNAME + ' Password: ' + Parsed.PASSWORD + ' Hashed: ' + Hashed);
+                    Parsed.PASSWORD = Hashed;
+                    FindUserExists(Parsed.UNAME).then((UserExists) => {
+                        if (!UserExists) {
+                            BuildHtml(Req.url + 'Error').then((HtmlToWrite) => {
+                                Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
+                                Res.end(HtmlToWrite);
+                            });
+                        }
                         else {
-                            CheckCredentials(Parsed.UNAME, Parsed.PASSWORD).then((CredentialsMatch) => __awaiter(this, void 0, void 0, function* () {
+                            CheckCredentials(Parsed.UNAME, Parsed.PASSWORD).then((CredentialsMatch) => {
                                 if (CredentialsMatch) {
-                                    const Head = '<p>Credentials Match</p>';
-                                    const Body = '';
-                                    const Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
-                                    var Script = '';
                                     QueryUserPriv(Parsed.UNAME).then((PrivVal) => {
                                         if (PrivVal >= 10) {
-                                            console.log('User is Admin: ', PrivVal.toString());
-                                            Script = '<script>const form = document.createElement(\'form\'); form.method = \'POST\'; form.action = \'/AdminPanel\'; const unameInput = document.createElement(\'input\'); unameInput.type = \'hidden\'; unameInput.name = \'UNAME\'; unameInput.value = \'' + Parsed.UNAME + '\'; form.appendChild(unameInput); const passwordInput = document.createElement(\'input\'); passwordInput.type = \'hidden\'; passwordInput.name = \'PASSWORD\'; passwordInput.value = \'' + Parsed.PASSWORD + '\'; form.appendChild(passwordInput); document.body.appendChild(form); form.submit(); </script>';
-                                            Res.writeHead(200, { 'Content-Type': 'text/html' });
-                                            Res.end('<style>' + Css + '</style>' + '<!DOCTYPE html>' + '<html><head>' + Head + '</head><body>' + Script + Body + '</body></html>');
+                                            var SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
+                                            var LoginCookie = `SessionID=${SessionID}; HttpOnly; Secure; SameSite=Strict; Max-Age=${FifteenMinsS}`;
+                                            console.log(`User ${Parsed.UNAME} is Admin. SessionID: ${SessionID} `);
+                                            WriteSessionID(SessionID, Parsed.UNAME).then(() => {
+                                                console.log;
+                                                Res.writeHead(302, { 'Location': '/AdminPanel', 'Set-Cookie': LoginCookie });
+                                                Res.end();
+                                            });
                                         }
                                         else {
-                                            console.log('User is Member: ' + PrivVal);
-                                            Script = '<script>const form = document.createElement(\'form\'); form.method = \'POST\'; form.action = \'/User\'; const unameInput = document.createElement(\'input\'); unameInput.type = \'hidden\'; unameInput.name = \'UNAME\'; unameInput.value = \'' + Parsed.UNAME + '\'; form.appendChild(unameInput); const passwordInput = document.createElement(\'input\'); passwordInput.type = \'hidden\'; passwordInput.name = \'PASSWORD\'; passwordInput.value = \'' + Parsed.PASSWORD + '\'; form.appendChild(passwordInput); document.body.appendChild(form); form.submit(); </script>';
-                                            Res.writeHead(200, { 'Content-Type': 'text/html' });
-                                            Res.end('<style>' + Css + '</style>' + '<!DOCTYPE html>' + '<html><head>' + Head + '</head><body>' + Script + Body + '</body></html>');
+                                            var SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
+                                            var LoginCookie = `SessionID=${SessionID}; HttpOnly; Secure; SameSite=Strict; Max-Age=${FifteenMinsS}`;
+                                            console.log(`User ${Parsed.UNAME} is Member. SessionID: ${SessionID} `);
+                                            WriteSessionID(SessionID, Parsed.UNAME).then(() => {
+                                                Res.writeHead(302, { 'Location': '/User', 'Set-Cookie': LoginCookie });
+                                                Res.end();
+                                            });
                                         }
+                                        console.log('\n');
                                     });
                                 }
                                 else {
-                                    var HtmlToWrite = yield BuildHtml(Req.url + 'Error');
-                                    Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                                    Res.end(HtmlToWrite);
+                                    BuildHtml(Req.url + 'Error').then((HtmlToWrite) => {
+                                        Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
+                                        Res.end(HtmlToWrite);
+                                    });
                                 }
-                            }));
+                            });
                         }
-                    }));
+                    });
                 });
             }
         }
         else if (Req.url == '/User') {
-            if (Req.method == 'GET') {
+            // Verify SessionId
+            const Cookies = ParseCookies(Req.headers.cookie);
+            const SessionID = Cookies.SessionID;
+            var IsActive;
+            if (SessionID) {
+                IsActive = yield SessionActive(SessionID);
+                var Status = "Expired / Dne";
+                if (IsActive)
+                    Status = "Active";
+                console.log(`SessionID: ${SessionID} Status: ${Status}`);
+            }
+            if (IsActive) {
+                const Uname = yield QueryUnameFromSid(SessionID);
+                var Head = '<p>Welcome: ' + Uname + '</p>';
+                var Body = '';
+                var Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
+                Res.writeHead(200, { 'Content-Type': 'text/html' });
+                Res.end('<style>' + Css + '</style>' + '<!DOCTYPE html>' + '<html><head>' + Head + '</head><body>' + Body + '</body></html>');
+            }
+            else {
                 Res.writeHead(302, { 'Location': '/Login' });
                 Res.end();
-            }
-            else if (Req.method == 'POST') {
-                ParsePOST(Req, Parsed => {
-                    var Head = '<p>Welcome: ' + Parsed.UNAME + '</p>';
-                    var Body = '';
-                    var Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
-                    Res.writeHead(200, { 'Content-Type': 'text/html' });
-                    Res.end('<style>' + Css + '</style>' + '<!DOCTYPE html>' + '<html><head>' + Head + '</head><body>' + Body + '</body></html>');
-                });
             }
         }
         else if (Req.url == '/AdminPanel') {
             if (Req.method == 'GET') {
-                Res.writeHead(302, { 'Location': '/Login' });
-                Res.end();
+                // Verify SessionId
+                const Cookies = ParseCookies(Req.headers.cookie);
+                const SessionID = Cookies.SessionID;
+                var IsActive;
+                if (SessionID) {
+                    IsActive = yield SessionActive(SessionID);
+                    var Status = "Expired / Dne";
+                    if (IsActive)
+                        Status = "Active";
+                    console.log(`SessionID: ${SessionID} Status: ${Status}`);
+                }
+                if (IsActive) {
+                    //verify Session ID and user priv
+                    QueryUserPrivBySID(SessionID).then((PrivVal) => __awaiter(this, void 0, void 0, function* () {
+                        if (PrivVal >= 10) {
+                            var HtmlToWrite = yield BuildHtml(Req.url);
+                            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
+                            Res.end(HtmlToWrite);
+                        }
+                        else {
+                            //Redir to user panel i think
+                        }
+                    }));
+                }
+                else {
+                    Res.writeHead(302, { 'Location': '/Login' });
+                    Res.end();
+                }
             }
             else if (Req.method == 'POST') {
                 ParsePOST(Req, Parsed => {
@@ -353,9 +573,9 @@ http.createServer(function (Req, Res) {
             }
         }
         else if (Req.url == '/Api/VisitCount') {
-            var ToWrite = String(UserVisits);
-            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': ToWrite.length });
-            Res.end(ToWrite);
+            var Data = JSON.stringify({ "UserVisits": UserVisits });
+            Res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Data.length });
+            Res.end(Data);
             //console.log('VisitCount API: Recieved Request');
         }
         else if (Req.url === '/favicon.ico') {
@@ -373,8 +593,8 @@ http.createServer(function (Req, Res) {
             Res.statusCode = 404;
             Res.end();
         }
-        if (Req.url != '/Api/VisitCount') {
-            console.log(`Http repsonse is ${Res.statusCode}`);
+        if (Req.url != '/Api/VisitCount' && Req.url != '/favicon.ico') {
+            console.log(`Http repsonse to ${Req.url} is ${Res.statusCode}`);
             console.log('\n');
         }
     });
