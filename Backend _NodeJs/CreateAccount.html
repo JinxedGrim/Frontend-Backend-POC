@@ -27,11 +27,32 @@
             width: 100%;
             position: fixed;
             display: flex;
+            box-shadow: 0 0 10px #39FF14;
+            font-family: consolas;
+            justify-content: start;
         }
 
         .NavLink {
             display: flex;
+            font-family: consolas;
         }
+
+            .NavLink.LogIn {
+                margin-left: auto;
+                display: flex;
+                font-family: consolas;
+            }
+
+                .NavLink.LogIn a, .NavLink.CreateAccount a
+                {
+                    display: block;
+                    color: #39FF14;
+                    text-align: center;
+                    padding: 12px 14px;
+                    margin: 0px;
+                    text-decoration: none;
+                    font-family: consolas;
+                }
 
             .NavLink a {
                 display: block;
@@ -40,20 +61,24 @@
                 padding: 12px 14px;
                 margin: 0px;
                 text-decoration: none;
+                font-family: consolas;
             }
 
-                .NavLink a:hover:not(.NavbarActive) {
-                    background-color: #363636;
-                }
+            .NavLink:not(.NavbarActive) a:hover {
+                background-color: #363636;
+                font-family: consolas;
+            }
 
         .NavbarActive {
             background-color: black;
+            font-family: consolas;
         }
 
         .CreateForm {
             display: inline-block;
             border: 1px solid #39FF14;
             padding: 10px;
+            box-shadow: 0 0 10px #39FF14;
         }
 
         a:visited,
@@ -69,12 +94,6 @@
             <a href="/"> Home </a>
         </div>
         <div class="NavLink">
-            <a href="/Login"> Login </a>
-        </div>
-        <div class="NavLink">
-            <a class="NavbarActive" href="/CreateAccount"> Register </a>
-        </div>
-        <div class="NavLink">
             <a href="https://github.com/JinxedGrim"><i class="fa fa-github" style="font-size:24px"></i></a>
         </div>
         <div class="NavLink">
@@ -83,9 +102,15 @@
         <div class="NavLink">
             <a href="https://www.twitch.tv/JinxedGrim"><i class="fa fa-twitch" style="font-size:24px"></i></a>
         </div>
+        <div class="NavLink LogIn">
+            <a href="/Login"> Login </a>
+        </div>
+        <div class="NavLink CreateAccount NavbarActive">
+            <a href="/CreateAccount"> Register </a>
+        </div>
     </div>
     <div class="CreateForm">
-        <form action="/CreateAccount" method="POST" enctype="application/x-www-form-urlencoded" target="_self">
+        <form  id="CreateAccountForm"> <!-- action="/CreateAccount" method="POST" enctype="application/x-www-form-urlencoded" target="_self" -->
             <label for="UNAME"> Username </label>
             <br>
             <input type="text" id="UNAME" name="UNAME">
@@ -100,6 +125,79 @@
             <br><br>
             <input type="submit" value="Create">
         </form>
+        <script>
+
+            function FormDataToJson(Data)
+            {
+                const Obj = {};
+                Data.forEach((value, key) =>
+                {
+                    // Check if property already exists
+                    if (!Obj.hasOwnProperty(key))
+                    {
+                        Obj[key] = value;
+                        return;
+                    }
+                    // If property does exist and is an array, push to it; otherwise, convert to an array
+                    if (!Array.isArray(Obj[key]))
+                    {
+                        Obj[key] = [Obj[key]];
+                    }
+                    Obj[key].push(value);
+                });
+                return JSON.stringify(Obj);
+            }
+
+            function AddErrorr(ErrMsg)
+            {
+                const PrevError = document.querySelector('.CreateForm .ErrorMessage');
+                if (PrevError)
+                {
+                    PrevError.remove();
+                }
+
+                // Create new error message element
+                const ErrorElement = document.createElement('div');
+                ErrorElement.textContent = ErrMsg;
+                ErrorElement.style.color = 'red';
+                ErrorElement.className = 'ErrorMessage';
+
+                // Append the error message to the CreateForm div
+                document.querySelector('.CreateForm').appendChild(ErrorElement);
+            }
+
+            function SendPOST()
+            {
+                const HostName = window.location.hostname;
+                const Port = window.location.port;
+                const CreateAccountUrl = `http://${HostName}:${Port}/CreateAccount`;
+
+                const Data = new FormData(document.getElementById('CreateAccountForm'));
+                const JsonData = FormDataToJson(Data);
+
+                fetch(CreateAccountUrl, { method: 'POST', body: JsonData })
+                    .then((Res) =>
+                    {
+                        // Check if the response is JSON
+                        const Type = Res.headers.get('content-type');
+                        if (Type && Type.includes('application/json'))
+                        {
+                            Res.json().then((ErrorCode) => { console.log('Response Data: ' + ErrorCode.Error); AddErrorr(ErrorCode.Error) });
+                        }
+                        else
+                        {
+                            window.location.href = Res.url;
+                        }
+                    })
+                    .catch(error => console.error('Error while processing POST: ', error));
+            }
+
+            document.getElementById('CreateAccountForm').addEventListener('submit', function (event)
+            {
+                event.preventDefault(); // This stops the default form submission
+                SendPOST();
+            });
+        </script>
     </div>
 </body>
 

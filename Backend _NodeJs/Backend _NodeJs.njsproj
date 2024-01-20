@@ -37,20 +37,11 @@
     <Content Include="AdminPanel.html">
       <SubType>Code</SubType>
     </Content>
-    <Content Include="CreateAccountErrorPassword.html">
-      <SubType>Code</SubType>
-    </Content>
-    <Content Include="CreateAccountErrorUser.html">
-      <SubType>Code</SubType>
-    </Content>
     <Content Include="index.html">
       <SubType>Code</SubType>
     </Content>
     <Content Include="Info.txt" />
     <Content Include="Login.html">
-      <SubType>Code</SubType>
-    </Content>
-    <Content Include="LoginError.html">
       <SubType>Code</SubType>
     </Content>
     <Content Include="CreateAccount.html">

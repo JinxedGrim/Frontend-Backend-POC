@@ -18,15 +18,17 @@ const { parse } = require('querystring');
 const sql = require('mssql');
 const crypto = require("crypto");
 const FifteenMinsS = 900;
-const PreDefinedSalt = '[REDACTED FROM COMMIT]';
+const PreDefinedSalt = '';
+const IpSalt = '';
 var IpToPrint = '0.0.0.0';
 const port = process.env.port || 667;
 var UserVisits = 0;
+//SessionID is now locked to a hash of the IP that that was used for the login. Added a user panel icon when signed in. Added a sign out page. Got rid of extra pages for error messages (now uses fetch)
 const config = {
     server: 'localhost',
     database: 'Users',
-    user: '[REDACTED FROM COMMIT]',
-    password: '[REDACTED FROM COMMIT]',
+    user: '',
+    password: '',
     options: {
         trustServerCertificate: true, // Trust the self-signed certificate
     }
@@ -184,12 +186,13 @@ function CreateUser(Username, Password) {
         //console.log(Res.recordset.length);
     });
 }
-function SessionActive(SessionID) {
+function SessionActive(SessionID, IP = undefined) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!SessionID)
             return false;
         const Query = 'SELECT Id FROM Users WHERE SessionID = @sid';
         const Query2 = 'SELECT SessionExp FROM Users WHERE SessionID = @sid';
+        const Query3 = 'SELECT SessionIP FROM Users WHERE SessionID = @sid';
         const SqlReq = new sql.Request();
         SqlReq.input('sid', sql.NVarChar(sql.MAX), SessionID);
         //console.log('Running the Query: ' + Query.replace('@sid', `'${SessionID}'`));
@@ -212,10 +215,16 @@ function SessionActive(SessionID) {
         //console.log(CurrTimeUTC);
         if (CurrTimeUTC > OldTime)
             return false;
+        if (IP != undefined) {
+            const Res3 = yield RunSqlQuery(SqlReq, Query3);
+            if (IP != Res3.recordset[0].SessionIP) {
+                return false;
+            }
+        }
         return true;
     });
 }
-function WriteSessionID(SessionID, UidOrUname) {
+function WriteSessionID(SessionID, UidOrUname, Ip = undefined) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!SessionID) {
             console.log(`[WriteSID] Inavlid Parameter (SessionID) ${SessionID}`);
@@ -240,6 +249,7 @@ function WriteSessionID(SessionID, UidOrUname) {
         }
         const Query = `UPDATE Users SET SessionID = @sid WHERE ${Where} = @Param`;
         const Query2 = `UPDATE Users SET SessionExp = @ExpTime WHERE ${Where} = @Param`;
+        const Query3 = `UPDATE Users SET SessionIP = @ip WHERE ${Where} = @Param`;
         const CurrTime = new Date();
         CurrTime.setMinutes(CurrTime.getMinutes() + 15);
         const CurrUtcTime = CurrTime.toISOString();
@@ -252,7 +262,10 @@ function WriteSessionID(SessionID, UidOrUname) {
         SqlReq.input('Param', sql.NVarChar(sql.MAX), UidOrUname);
         const Res = yield RunSqlQuery(SqlReq, Query);
         const Res2 = yield RunSqlQuery(SqlReq, Query2);
-        //console.log(Res);
+        if (Ip != undefined) {
+            SqlReq.input('ip', sql.NVarChar(sql.MAX), Ip);
+            const Res3 = yield RunSqlQuery(SqlReq, Query3);
+        }
     });
 }
 function ParseCookies(CookieHeader) {
@@ -346,7 +359,7 @@ function BuildHtml(Url) {
         }
     });
 }
-function ParsePOST(Request, Cb) {
+function ParsePOSTUrlEnc(Request, Cb) {
     var Body = '';
     Request.on('data', Chunk => {
         Body += Chunk.toString();
@@ -356,9 +369,20 @@ function ParsePOST(Request, Cb) {
         Cb(parse(Body));
     });
 }
+function ParsePOSTJson(Request, Cb) {
+    var Body = '';
+    Request.on('data', Chunk => {
+        Body += Chunk.toString();
+    });
+    Request.on('end', () => {
+        const JsonObj = JSON.parse(Body);
+        console.log(JsonObj);
+        Cb(JsonObj);
+    });
+}
 http.createServer(function (Req, Res) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (Req.url != '/Api/VisitCount' && Req.url != '/favicon.ico') {
+        if (!Req.url.includes('/Api/') && Req.url != '/favicon.ico') {
             console.log('Request Recieved');
             console.log('Http Version: ' + Req.httpVersion);
             console.log('Request IP: ' + Req.socket.remoteAddress);
@@ -370,7 +394,6 @@ http.createServer(function (Req, Res) {
             IpToPrint = Req.socket.remoteAddress;
             var HtmlToWrite = yield BuildHtml(Req.url);
             Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-            //,'Set-Cookie': 'SessionID=; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
             Res.end(HtmlToWrite);
         }
         else if (Req.url == '/CreateAccount') {
@@ -380,11 +403,11 @@ http.createServer(function (Req, Res) {
                 Res.end(HtmlToWrite);
             }
             if (Req.method == 'POST') {
-                ParsePOST(Req, (Parsed) => __awaiter(this, void 0, void 0, function* () {
+                ParsePOSTJson(Req, (Parsed) => __awaiter(this, void 0, void 0, function* () {
                     if (Parsed.PASSWORD != Parsed.PASSWORD2) {
-                        var HtmlToWrite = yield BuildHtml(Req.url + 'ErrorPass');
-                        Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                        Res.end(HtmlToWrite);
+                        const Message = JSON.stringify({ "Error": "Passwords do not match!" });
+                        Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+                        Res.end(Message);
                     }
                     else {
                         FindUserExists(Parsed.UNAME).then((UserExists) => __awaiter(this, void 0, void 0, function* () {
@@ -395,9 +418,9 @@ http.createServer(function (Req, Res) {
                                 Res.end();
                             }
                             else {
-                                var HtmlToWrite = yield BuildHtml(Req.url + 'ErrorUser');
-                                Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                                Res.end(HtmlToWrite);
+                                const Message = JSON.stringify({ "Error": "Username already exists!" });
+                                Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+                                Res.end(Message);
                             }
                         }));
                     }
@@ -410,16 +433,13 @@ http.createServer(function (Req, Res) {
                 var SessionID = Cookies.SessionID;
                 var IsActive;
                 if (SessionID) {
-                    SessionActive(SessionID).then((IsActive) => __awaiter(this, void 0, void 0, function* () {
+                    const HashedIP = HashPassword(IpToPrint, IpSalt);
+                    SessionActive(SessionID, HashedIP).then((IsActive) => __awaiter(this, void 0, void 0, function* () {
                         var Status = "Expired / Dne";
                         if (IsActive)
                             Status = "Active";
                         console.log(`SessionID: ${SessionID} Status: ${Status}`);
                         if (IsActive) {
-                            const Head = '<p>Credentials Match</p>';
-                            const Body = '';
-                            const Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
-                            var Script = '';
                             QueryUserPrivBySID(SessionID).then((PrivVal) => {
                                 if (PrivVal >= 10) {
                                     Res.writeHead(302, { 'Location': '/AdminPanel' });
@@ -445,36 +465,39 @@ http.createServer(function (Req, Res) {
                 }
             }
             else if (Req.method == 'POST') {
-                ParsePOST(Req, Parsed => {
-                    var Hashed = HashPassword(Parsed.PASSWORD);
+                ParsePOSTJson(Req, Parsed => {
+                    const Hashed = HashPassword(Parsed.PASSWORD);
                     console.log('POST RESULT: Uname: ' + Parsed.UNAME + ' Password: ' + Parsed.PASSWORD + ' Hashed: ' + Hashed);
                     Parsed.PASSWORD = Hashed;
                     FindUserExists(Parsed.UNAME).then((UserExists) => {
                         if (!UserExists) {
-                            BuildHtml(Req.url + 'Error').then((HtmlToWrite) => {
-                                Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                                Res.end(HtmlToWrite);
-                            });
+                            const Message = JSON.stringify({ "Error": "Invalid credentials!" });
+                            Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+                            Res.end(Message);
                         }
                         else {
                             CheckCredentials(Parsed.UNAME, Parsed.PASSWORD).then((CredentialsMatch) => {
                                 if (CredentialsMatch) {
                                     QueryUserPriv(Parsed.UNAME).then((PrivVal) => {
                                         if (PrivVal >= 10) {
-                                            var SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
-                                            var LoginCookie = `SessionID=${SessionID}; HttpOnly; Secure; SameSite=Strict; Max-Age=${FifteenMinsS}`;
+                                            const SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
+                                            // TODO Make HTTPS and add secuure
+                                            const LoginCookie = `SessionID=${SessionID}; HttpOnly; SameSite=Strict; Max-Age=${FifteenMinsS}`;
                                             console.log(`User ${Parsed.UNAME} is Admin. SessionID: ${SessionID} `);
-                                            WriteSessionID(SessionID, Parsed.UNAME).then(() => {
+                                            const HashedIP = HashPassword(IpToPrint, IpSalt);
+                                            WriteSessionID(SessionID, Parsed.UNAME, HashedIP).then(() => {
                                                 console.log;
                                                 Res.writeHead(302, { 'Location': '/AdminPanel', 'Set-Cookie': LoginCookie });
                                                 Res.end();
                                             });
                                         }
                                         else {
-                                            var SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
-                                            var LoginCookie = `SessionID=${SessionID}; HttpOnly; Secure; SameSite=Strict; Max-Age=${FifteenMinsS}`;
+                                            const SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
+                                            // TODO Make HTTPS and add secuure
+                                            const LoginCookie = `SessionID=${SessionID}; HttpOnly; SameSite=Strict; Max-Age=${FifteenMinsS}`;
                                             console.log(`User ${Parsed.UNAME} is Member. SessionID: ${SessionID} `);
-                                            WriteSessionID(SessionID, Parsed.UNAME).then(() => {
+                                            const HashedIP = HashPassword(IpToPrint, IpSalt);
+                                            WriteSessionID(SessionID, Parsed.UNAME, HashedIP).then(() => {
                                                 Res.writeHead(302, { 'Location': '/User', 'Set-Cookie': LoginCookie });
                                                 Res.end();
                                             });
@@ -483,10 +506,9 @@ http.createServer(function (Req, Res) {
                                     });
                                 }
                                 else {
-                                    BuildHtml(Req.url + 'Error').then((HtmlToWrite) => {
-                                        Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                                        Res.end(HtmlToWrite);
-                                    });
+                                    const Message = JSON.stringify({ "Error": "Invalid credentials!" });
+                                    Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+                                    Res.end(Message);
                                 }
                             });
                         }
@@ -494,13 +516,18 @@ http.createServer(function (Req, Res) {
                 });
             }
         }
+        else if (Req.url == '/SignOut') {
+            Res.writeHead(302, { 'Location': '/', 'Set-Cookie': 'SessionID=; HttpOnly; SameSite=Strict; Max-Age=0' });
+            Res.end();
+        }
         else if (Req.url == '/User') {
             // Verify SessionId
             const Cookies = ParseCookies(Req.headers.cookie);
             const SessionID = Cookies.SessionID;
             var IsActive;
             if (SessionID) {
-                IsActive = yield SessionActive(SessionID);
+                const HashedIP = HashPassword(IpToPrint, IpSalt);
+                IsActive = yield SessionActive(SessionID, HashedIP);
                 var Status = "Expired / Dne";
                 if (IsActive)
                     Status = "Active";
@@ -526,7 +553,8 @@ http.createServer(function (Req, Res) {
                 const SessionID = Cookies.SessionID;
                 var IsActive;
                 if (SessionID) {
-                    IsActive = yield SessionActive(SessionID);
+                    const HashedIP = HashPassword(IpToPrint, IpSalt);
+                    IsActive = yield SessionActive(SessionID, HashedIP);
                     var Status = "Expired / Dne";
                     if (IsActive)
                         Status = "Active";
@@ -551,7 +579,7 @@ http.createServer(function (Req, Res) {
                 }
             }
             else if (Req.method == 'POST') {
-                ParsePOST(Req, Parsed => {
+                ParsePOSTUrlEnc(Req, Parsed => {
                     CheckCredentials(Parsed.UNAME, Parsed.PASSWORD).then((CredentialsMatch) => {
                         if (CredentialsMatch) {
                             QueryUserPriv(Parsed.UNAME).then((PrivVal) => {
@@ -579,6 +607,23 @@ http.createServer(function (Req, Res) {
             Res.end(Data);
             //console.log('VisitCount API: Recieved Request');
         }
+        else if (Req.url == '/Api/LoginStatus') {
+            var Cookies = ParseCookies(Req.headers.cookie);
+            var SessionID = Cookies.SessionID;
+            if (SessionID) {
+                const HashedIP = HashPassword(IpToPrint, IpSalt);
+                SessionActive(SessionID, HashedIP).then((IsActive) => {
+                    var Data = JSON.stringify({ "IsLoggedIn": IsActive });
+                    Res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Data.length });
+                    Res.end(Data);
+                });
+            }
+            else {
+                var Data = JSON.stringify({ "IsLoggedIn": false });
+                Res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Data.length });
+                Res.end(Data);
+            }
+        }
         else if (Req.url === '/favicon.ico') {
             // Set the path to the favicon file
             const Favicon = path.join(__dirname, 'favicon.ico');
@@ -594,7 +639,7 @@ http.createServer(function (Req, Res) {
             Res.statusCode = 404;
             Res.end();
         }
-        if (Req.url != '/Api/VisitCount' && Req.url != '/favicon.ico') {
+        if (!Req.url.includes('/Api/') && Req.url != '/favicon.ico') {
             console.log(`Http repsonse to ${Req.url} is ${Res.statusCode}`);
             console.log('\n');
         }

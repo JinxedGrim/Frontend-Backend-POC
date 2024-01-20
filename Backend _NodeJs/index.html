@@ -13,8 +13,7 @@
             font-family: consolas;
         }
 
-        .Navbar 
-        {
+        .Navbar {
             padding: 0px;
             margin: 0px;
             background-color: #0f0f0f;
@@ -26,6 +25,7 @@
             display: flex;
             box-shadow: 0 0 10px #39FF14;
             font-family: consolas;
+            justify-content: start;
         }
 
         .NavLink 
@@ -33,6 +33,24 @@
             display: flex;
             font-family: consolas;
         }
+
+            .NavLink.LogIn 
+            {
+                margin-left: auto;
+                display: flex;
+                font-family: consolas;
+            }
+
+                .NavLink.LogIn a, .NavLink.CreateAccount a 
+                {
+                    display: block;
+                    color: #39FF14;
+                    text-align: center;
+                    padding: 12px 14px;
+                    margin: 0px;
+                    text-decoration: none;
+                    font-family: consolas;
+                }
 
         .NavLink a 
         {
@@ -45,17 +63,16 @@
             font-family: consolas;
         }
 
-        .NavLink a:hover:not(.NavbarActive) 
-        {
-            background-color: #363636;
-            font-family: consolas;
-        }
-
         .NavbarActive {
             background-color: black;
             font-family: consolas;
         }
 
+
+        .NavLink a:not(.NavbarActive):hover {
+            background-color: #363636;
+            font-family: consolas;
+        }
 
         .Links {
             display: inline-block;
@@ -97,12 +114,6 @@
             <a class="NavbarActive" href="/"> Home </a>
         </div>
         <div class="NavLink">
-            <a href="/Login"> Login </a>
-        </div>
-        <div class="NavLink">
-            <a href="/CreateAccount"> Register </a>
-        </div>
-        <div class="NavLink">
             <a href="https://github.com/JinxedGrim"><i class="fa fa-github" style="font-size:24px"></i></a>
         </div>
         <div class="NavLink">
@@ -111,16 +122,64 @@
         <div class="NavLink">
             <a href="https://www.twitch.tv/JinxedGrim"><i class="fa fa-twitch" style="font-size:24px"></i></a>
         </div>
+        <div class="NavLink LogIn">
+            <a href="/Login"> Login </a>
+        </div>
+        <div class="NavLink CreateAccount">
+            <a href="/CreateAccount"> Register </a>
+        </div>
+        <script>
+            const LoginDiv = document.querySelector('.LogIn a');
+            const RegisterDiv = document.querySelector('.CreateAccount a');
+
+            const HostName = window.location.hostname;
+            const Port = window.location.port;
+            const LoginStatusAPI = `http://${HostName}:${Port}/Api/LoginStatus`;
+
+            function CheckLoginStatus()
+            {
+                fetch(LoginStatusAPI).then
+                    (response =>
+                    {
+                        if (!response.ok)
+                        {
+                            console.log('LoginStatus API Failed (Response wasn\'t OK)');
+                            return -1;
+                        }
+
+                        //console.log('Response was OK');
+
+                        return response.json();
+                    }
+                    ).then
+                    (Status =>
+                    {
+                        if (Status.IsLoggedIn)
+                        {
+                            LoginDiv.innerText = 'Sign Out';
+                            LoginDiv.href = '/SignOut';
+                            RegisterDiv.innerText = '';
+                            RegisterDiv.innerHTML = '<i class="fa fa-user" style="font-size:24px"></i>';
+                            RegisterDiv.style.fontSize = '24px';
+                            RegisterDiv.href = '/AdminPanel';
+                        }
+                    }
+                    ).catch
+                    (error =>
+                    {
+                        console.error('LoginStatus API Failed: ', error.text);
+                    }
+                    )
+            }
+
+            CheckLoginStatus();
+        </script>
     </div>
     <br>
     <br>
     <h1 style="text-align: center">Welcome! This is JinxedGrims first webserver!</h1>
     <h2 class="Visits">
         <script>
-            const HostName = window.location.hostname;
-
-            var Port = window.location.port;
-
             const VisitAPIEndpoint = `http://${HostName}:${Port}/Api/VisitCount`;
             const VisitDiv = document.querySelector('.Visits');
 

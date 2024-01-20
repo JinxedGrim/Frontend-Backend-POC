@@ -9,17 +9,20 @@ const sql = require('mssql');
 const crypto = require("crypto")
 
 const FifteenMinsS = 900;
-const PreDefinedSalt:string = '[REDACTED FROM COMMIT]'
-var IpToPrint:string = '0.0.0.0';
+const PreDefinedSalt: string = ''
+const IpSalt: string = ''
+var IpToPrint: string = '0.0.0.0';
 const port = process.env.port || 667;
-var UserVisits:number = 0;
+var UserVisits: number = 0;
+
+//SessionID is now locked to a hash of the IP that that was used for the login. Added a user panel icon when signed in. Added a sign out page. Got rid of extra pages for error messages (now uses fetch)
 
 const config =
 {
-    server: 'localhost',
+    server: '',
     database: 'Users',
-    user: '[REDACTED FROM COMMIT]',
-    password: '[REDACTED FROM COMMIT]',
+    user: '',
+    password: '',
     options:
     {
         trustServerCertificate: true, // Trust the self-signed certificate
@@ -246,13 +249,14 @@ async function CreateUser(Username, Password): Promise<void>
     //console.log(Res.recordset.length);
 }
 
-async function SessionActive(SessionID:string): Promise<boolean>
+async function SessionActive(SessionID: string, IP:string = undefined): Promise<boolean>
 {
     if (!SessionID)
         return false;
 
     const Query = 'SELECT Id FROM Users WHERE SessionID = @sid';
     const Query2 = 'SELECT SessionExp FROM Users WHERE SessionID = @sid';
+    const Query3 = 'SELECT SessionIP FROM Users WHERE SessionID = @sid';
 
     const SqlReq = new sql.Request();
     SqlReq.input('sid', sql.NVarChar(sql.MAX), SessionID);
@@ -288,10 +292,20 @@ async function SessionActive(SessionID:string): Promise<boolean>
     if (CurrTimeUTC > OldTime)
         return false;
 
+    if (IP != undefined)
+    {
+        const Res3: any = await RunSqlQuery(SqlReq, Query3);
+
+        if (IP != Res3.recordset[0].SessionIP)
+        {
+            return false;
+        }
+    }
+
     return true;
 }
 
-async function WriteSessionID(SessionID:string, UidOrUname)
+async function WriteSessionID(SessionID: string, UidOrUname, Ip:string = undefined)
 {
     if (!SessionID)
     {
@@ -326,6 +340,7 @@ async function WriteSessionID(SessionID:string, UidOrUname)
 
     const Query = `UPDATE Users SET SessionID = @sid WHERE ${Where} = @Param`;
     const Query2 = `UPDATE Users SET SessionExp = @ExpTime WHERE ${Where} = @Param`;
+    const Query3 = `UPDATE Users SET SessionIP = @ip WHERE ${Where} = @Param`;
 
     const CurrTime = new Date();
     CurrTime.setMinutes(CurrTime.getMinutes() + 15);
@@ -343,7 +358,11 @@ async function WriteSessionID(SessionID:string, UidOrUname)
     const Res: any = await RunSqlQuery(SqlReq, Query);
     const Res2: any = await RunSqlQuery(SqlReq, Query2);
 
-    //console.log(Res);
+    if (Ip != undefined)
+    {
+        SqlReq.input('ip', sql.NVarChar(sql.MAX), Ip);
+        const Res3: any = await RunSqlQuery(SqlReq, Query3);
+    }
 }
 
 interface ICookies
@@ -465,7 +484,7 @@ async function BuildHtml(Url): Promise<string>
     }
 }
 
-function ParsePOST(Request, Cb)
+function ParsePOSTUrlEnc(Request, Cb)
 {
     var Body = '';
 
@@ -481,9 +500,26 @@ function ParsePOST(Request, Cb)
     });
 }
 
+function ParsePOSTJson(Request, Cb)
+{
+    var Body = '';
+
+    Request.on('data', Chunk =>
+    {
+        Body += Chunk.toString();
+    });
+
+    Request.on('end', () =>
+    {
+        const JsonObj = JSON.parse(Body);
+        console.log(JsonObj);
+        Cb(JsonObj);
+    });
+}
+
 http.createServer(async function (Req, Res)
 {
-    if (Req.url != '/Api/VisitCount' && Req.url != '/favicon.ico')
+    if (!Req.url.includes('/Api/') && Req.url != '/favicon.ico')
     {
         console.log('Request Recieved');
         console.log('Http Version: ' + Req.httpVersion);
@@ -498,7 +534,7 @@ http.createServer(async function (Req, Res)
         IpToPrint = Req.socket.remoteAddress;
         var HtmlToWrite = await BuildHtml(Req.url);
         Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-        //,'Set-Cookie': 'SessionID=; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
+
         Res.end(HtmlToWrite);
     }
     else if (Req.url == '/CreateAccount')
@@ -511,13 +547,14 @@ http.createServer(async function (Req, Res)
         }
         if (Req.method == 'POST')
         {
-            ParsePOST(Req, async Parsed =>
+            ParsePOSTJson(Req, async Parsed =>
             {
                 if (Parsed.PASSWORD != Parsed.PASSWORD2)
                 {
-                    var HtmlToWrite = await BuildHtml(Req.url + 'ErrorPass');
-                    Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                    Res.end(HtmlToWrite);
+                    const Message = JSON.stringify({ "Error": "Passwords do not match!" });
+                    Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+
+                    Res.end(Message);
                 }
                 else
                 {
@@ -532,9 +569,10 @@ http.createServer(async function (Req, Res)
                         }
                         else
                         {
-                            var HtmlToWrite = await BuildHtml(Req.url + 'ErrorUser');
-                            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                            Res.end(HtmlToWrite);
+                            const Message = JSON.stringify({ "Error": "Username already exists!" });
+                            Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+
+                            Res.end(Message);
                         }
                     })
                 }
@@ -551,7 +589,8 @@ http.createServer(async function (Req, Res)
 
             if (SessionID)
             {
-                SessionActive(SessionID).then(async (IsActive) =>
+                const HashedIP = HashPassword(IpToPrint, IpSalt);
+                SessionActive(SessionID, HashedIP).then(async (IsActive) =>
                 {
                     var Status: string = "Expired / Dne";
                     if (IsActive)
@@ -561,11 +600,6 @@ http.createServer(async function (Req, Res)
 
                     if (IsActive)
                     {
-                        const Head = '<p>Credentials Match</p>';
-                        const Body = '';
-                        const Css = 'body { background-color: black; color: #39FF14; } a:visited, a:link { color: #39FF14 }';
-                        var Script = '';
-
                         QueryUserPrivBySID(SessionID).then((PrivVal: number) => 
                         {
                             if (PrivVal >= 10) 
@@ -597,9 +631,9 @@ http.createServer(async function (Req, Res)
         }
         else if (Req.method == 'POST')
         {
-            ParsePOST(Req, Parsed =>
+            ParsePOSTJson(Req, Parsed =>
             {
-                var Hashed = HashPassword(Parsed.PASSWORD);
+                const Hashed = HashPassword(Parsed.PASSWORD);
                 console.log('POST RESULT: Uname: ' + Parsed.UNAME + ' Password: ' + Parsed.PASSWORD + ' Hashed: ' + Hashed);
 
                 Parsed.PASSWORD = Hashed;
@@ -608,11 +642,10 @@ http.createServer(async function (Req, Res)
                 {
                     if (!UserExists) 
                     {
-                        BuildHtml(Req.url + 'Error').then((HtmlToWrite) =>
-                        {
-                            Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                            Res.end(HtmlToWrite);
-                        });
+                        const Message = JSON.stringify({ "Error": "Invalid credentials!" });
+                        Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+
+                        Res.end(Message);
                     }
                     else 
                     {
@@ -624,12 +657,15 @@ http.createServer(async function (Req, Res)
                                 {
                                     if (PrivVal >= 10) 
                                     {
-                                        var SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
-                                        var LoginCookie = `SessionID=${SessionID}; HttpOnly; Secure; SameSite=Strict; Max-Age=${FifteenMinsS}`;
+                                        const SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
+                                        // TODO Make HTTPS and add secuure
+                                        const LoginCookie = `SessionID=${SessionID}; HttpOnly; SameSite=Strict; Max-Age=${FifteenMinsS}`;
 
                                         console.log(`User ${Parsed.UNAME} is Admin. SessionID: ${SessionID} `);
 
-                                        WriteSessionID(SessionID, Parsed.UNAME).then(() =>
+                                        const HashedIP = HashPassword(IpToPrint, IpSalt);
+
+                                        WriteSessionID(SessionID, Parsed.UNAME, HashedIP).then(() =>
                                         {
                                             console.log
                                             Res.writeHead(302, { 'Location': '/AdminPanel', 'Set-Cookie': LoginCookie });
@@ -638,12 +674,15 @@ http.createServer(async function (Req, Res)
                                     }
                                     else
                                     {
-                                        var SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
-                                        var LoginCookie = `SessionID=${SessionID}; HttpOnly; Secure; SameSite=Strict; Max-Age=${FifteenMinsS}`;
+                                        const SessionID = HashPassword(Parsed.UNAME, CreateRandomSalt());
+                                        // TODO Make HTTPS and add secuure
+                                        const LoginCookie = `SessionID=${SessionID}; HttpOnly; SameSite=Strict; Max-Age=${FifteenMinsS}`;
 
                                         console.log(`User ${Parsed.UNAME} is Member. SessionID: ${SessionID} `);
 
-                                        WriteSessionID(SessionID, Parsed.UNAME).then(() =>
+                                        const HashedIP = HashPassword(IpToPrint, IpSalt);
+
+                                        WriteSessionID(SessionID, Parsed.UNAME, HashedIP).then(() =>
                                         {
                                             Res.writeHead(302, { 'Location': '/User', 'Set-Cookie': LoginCookie });
                                             Res.end();
@@ -655,11 +694,10 @@ http.createServer(async function (Req, Res)
                             }
                             else 
                             {
-                                BuildHtml(Req.url + 'Error').then((HtmlToWrite) =>
-                                {
-                                    Res.writeHead(200, { 'Content-Type': 'text/html', 'Content-Length': HtmlToWrite.length });
-                                    Res.end(HtmlToWrite);
-                                });
+                                const Message = JSON.stringify({ "Error": "Invalid credentials!" });
+                                Res.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Message.length });
+
+                                Res.end(Message);
                             }
 
                         });
@@ -667,6 +705,11 @@ http.createServer(async function (Req, Res)
                 });
             });
         }
+    }
+    else if (Req.url == '/SignOut')
+    {
+        Res.writeHead(302, { 'Location': '/', 'Set-Cookie': 'SessionID=; HttpOnly; SameSite=Strict; Max-Age=0' });
+        Res.end();
     }
     else if (Req.url == '/User')
     {
@@ -677,7 +720,8 @@ http.createServer(async function (Req, Res)
 
         if (SessionID)
         {
-            IsActive = await SessionActive(SessionID);
+            const HashedIP = HashPassword(IpToPrint, IpSalt);
+            IsActive = await SessionActive(SessionID, HashedIP);
 
             var Status: string = "Expired / Dne";
             if (IsActive)
@@ -713,7 +757,8 @@ http.createServer(async function (Req, Res)
 
             if (SessionID)
             {
-                IsActive = await SessionActive(SessionID);
+                const HashedIP = HashPassword(IpToPrint, IpSalt);
+                IsActive = await SessionActive(SessionID, HashedIP);
 
                 var Status: string = "Expired / Dne";
                 if (IsActive)
@@ -747,7 +792,7 @@ http.createServer(async function (Req, Res)
         }
         else if (Req.method == 'POST')
         {
-            ParsePOST(Req, Parsed =>
+            ParsePOSTUrlEnc(Req, Parsed =>
             {
                 CheckCredentials(Parsed.UNAME, Parsed.PASSWORD).then((CredentialsMatch) =>
                 {
@@ -783,6 +828,28 @@ http.createServer(async function (Req, Res)
 
         //console.log('VisitCount API: Recieved Request');
     }
+    else if (Req.url == '/Api/LoginStatus')
+    {
+        var Cookies = ParseCookies(Req.headers.cookie);
+        var SessionID = Cookies.SessionID;
+
+        if (SessionID)
+        {
+            const HashedIP = HashPassword(IpToPrint, IpSalt);
+            SessionActive(SessionID, HashedIP).then((IsActive) =>
+            {
+                var Data = JSON.stringify({ "IsLoggedIn": IsActive });
+                Res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Data.length });
+                Res.end(Data);
+            });
+        }
+        else
+        {
+            var Data = JSON.stringify({ "IsLoggedIn": false });
+            Res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Data.length });
+            Res.end(Data);
+        }
+    }
     else if (Req.url === '/favicon.ico')
     {
         // Set the path to the favicon file
@@ -805,7 +872,7 @@ http.createServer(async function (Req, Res)
         Res.end();
     }
 
-    if (Req.url != '/Api/VisitCount' && Req.url != '/favicon.ico')
+    if (!Req.url.includes('/Api/') && Req.url != '/favicon.ico')
     {
         console.log(`Http repsonse to ${Req.url} is ${Res.statusCode}`);
         console.log('\n');
